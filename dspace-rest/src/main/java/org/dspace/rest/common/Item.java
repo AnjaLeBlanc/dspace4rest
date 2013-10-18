@@ -1,5 +1,7 @@
 package org.dspace.rest.common;
 
+import org.dspace.content.Bitstream;
+import org.dspace.content.Bundle;
 import org.dspace.content.DCValue;
 import org.dspace.core.Context;
 
@@ -41,6 +43,9 @@ public class Item {
 
 
     //Bitstreams
+    Bitstreams bs;
+    
+    String nonsense;
 
     private static Context context;
 
@@ -86,7 +91,28 @@ public class Item {
 
             this.setOwningCollectionID(item.getOwningCollection().getID());
             this.setOwningCollectionName(item.getOwningCollection().getName());
+            
+            Bundle[] bundles = item.getBundles();
+            for(int i=0; i< bundles.length; i++){
+            	Bitstream[] bitstreams=bundles[i].getBitstreams();
+            	for(int j=0;j< bitstreams.length;j++){
+            		BitstreamEntity entity = new BitstreamEntity();
+            		entity.setBitstreamID(bitstreams[j].getID());
+            		CheckSum checksum = new CheckSum();
+            		checksum.setCheckSumAlgorith(bitstreams[j].getChecksumAlgorithm());
+            		checksum.setValue(bitstreams[j].getChecksum());
+            		entity.setCheckSum(checksum);
+            		entity.setDescription(bitstreams[j].getDescription());
+            		entity.setMimeType(bitstreams[j].getFormat().getMIMEType());
+            		entity.setName(bitstreams[j].getName());
+            		entity.setSequenceID(bitstreams[j].getSequenceID());
+            		entity.setSize(bitstreams[j].getSize());
+            		this.bs.addBitstream(entity);
+            	}
+            	
+            }
 
+            this.nonsense="Nonsense";
 
         } catch (Exception e) {
 
@@ -157,5 +183,13 @@ public class Item {
     public void setOwningCollectionName(String owningCollectionName) {
         this.owningCollectionName = owningCollectionName;
     }
+
+	public Bitstreams getBitstreams() {
+		return bs;
+	}
+
+	public void setBitstreams(Bitstreams bitstreams) {
+		this.bs = bitstreams;
+	}
 
 }

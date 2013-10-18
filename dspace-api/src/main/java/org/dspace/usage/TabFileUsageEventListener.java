@@ -103,8 +103,12 @@ public class TabFileUsageEventListener extends AbstractUsageEventListener
 	        string += "\t" + ue.getName(); // event type
 	        string += "\t" + ue.getObject().getType();
 	        string += "\t" + ue.getObject().getID();
-	        string += "\t" + ue.getRequest().getSession().getId();
-	        string += "\t" + ue.getRequest().getRequestURI();
+	        if(ue.getRequest()!=null){
+		        string += "\t" + ue.getRequest().getSession().getId();
+		        string += "\t" + ue.getRequest().getRequestURI();
+	        } else {
+	        	string +="\t\t";
+	        }
 	
 	        String epersonName = (null == ue.getContext().getCurrentUser() ? "anonymous" : ue.getContext().getCurrentUser().getEmail());
 	        string += "\t" + epersonName;
