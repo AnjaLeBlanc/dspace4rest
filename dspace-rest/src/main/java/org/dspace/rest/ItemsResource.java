@@ -1,14 +1,24 @@
+/**
+ * The contents of this file are subject to the license and copyright
+ * detailed in the LICENSE and NOTICE files at the root of the source
+ * tree and available online at
+ *
+ * http://www.dspace.org/license/
+ */
 package org.dspace.rest;
 
 import java.sql.SQLException;
 
 import javax.servlet.http.HttpServletRequest;
+import org.apache.log4j.Logger;
+import org.dspace.authorize.AuthorizeManager;
+
 import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 
-import org.apache.log4j.Logger;
 import org.dspace.content.DSpaceObject;
 import org.dspace.core.ConfigurationManager;
 import org.dspace.core.Constants;
@@ -33,19 +43,38 @@ public class ItemsResource {
 	
 	 /** log4j category */
     private static final Logger log = Logger.getLogger(ItemsResource.class);
-
     //ItemList - Not Implemented
+
+    org.dspace.core.Context context;
 
     @GET
     @Path("/{item_id}")
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public org.dspace.rest.common.Item getItem(@PathParam("item_id") Integer item_id, @QueryParam("expand") String expand,
     		@QueryParam("userIP") String user_ip, @QueryParam("userAgent") String user_agent, @QueryParam("xforwarderfor") String xforwarderfor,
-    		@Context HttpHeaders headers, @Context HttpServletRequest request) {
-    	if(writeStatistics){
-    		writeStats(item_id, user_ip, user_agent, xforwarderfor, headers, request);
-    	}
-        return new org.dspace.rest.common.Item(item_id, expand);
+    		@Context HttpHeaders headers, @Context HttpServletRequest request) throws WebApplicationException {
+    	
+    	
+        try {
+            if(context == null || !context.isValid()) {
+                context = new org.dspace.core.Context();
+            }
+
+            org.dspace.content.Item item = org.dspace.content.Item.find(context, item_id);
+
+            if(AuthorizeManager.authorizeActionBoolean(context, item, org.dspace.core.Constants.READ)) {
+            	if(writeStatistics){
+    				writeStats(item_id, user_ip, user_agent, xforwarderfor, headers, request);
+    			}
+                return new org.dspace.rest.common.Item(item, expand, context);
+            } else {
+                throw new WebApplicationException(Response.Status.UNAUTHORIZED);
+            }
+
+        } catch (SQLException e)  {
+            log.error(e.getMessage());
+            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
+        }
     }
     
     
@@ -54,7 +83,6 @@ public class ItemsResource {
 			HttpServletRequest request) {
 		
     	try{
-    		org.dspace.core.Context context = new org.dspace.core.Context();
     		DSpaceObject item = DSpaceObject.find(context, Constants.ITEM, item_id);
     		
     		if(user_ip==null || user_ip.length()==0){

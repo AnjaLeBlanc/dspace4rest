@@ -1,12 +1,21 @@
+/**
+ * The contents of this file are subject to the license and copyright
+ * detailed in the LICENSE and NOTICE files at the root of the source
+ * tree and available online at
+ *
+ * http://www.dspace.org/license/
+ */
 package org.dspace.rest.common;
 
-import org.dspace.content.Community;
-import org.dspace.content.Item;
+import org.apache.log4j.Logger;
+import org.dspace.authorize.AuthorizeManager;
 import org.dspace.content.ItemIterator;
 import org.dspace.core.Context;
 
+import javax.ws.rs.WebApplicationException;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,9 +28,8 @@ import java.util.List;
  * To change this template use File | Settings | File Templates.
  */
 @XmlRootElement(name = "collection")
-public class Collection {
-    //Internal value
-    private Integer collectionID;
+public class Collection extends DSpaceObject {
+    Logger log = Logger.getLogger(Collection.class);
 
     //Relationships to other objects
     private Integer logoID;
@@ -31,103 +39,87 @@ public class Collection {
     private List<Integer> parentCommunityIDList = new ArrayList<Integer>();
     private List<Integer> itemIDList = new ArrayList<Integer>();
 
+    @XmlElement(name = "items")
+    private List<DSpaceObject> items = new ArrayList<DSpaceObject>();
 
-    private List<String> expand = new ArrayList<String>();
+    private String license;
 
-    @XmlElement(name = "metadata", required = true)
-    private CollectionMetadata metadata;
+    //unused-metadata
+    //String provenance_description;
+    //String short_description;
+    //String introductory_text;
+    //String copyright_text;
+    //String side_bar_text;
 
+    public String getLicense() {
+        return license;
+    }
+
+    public void setLicense(String license) {
+        this.license = license;
+    }
 
     //Calculated
     private Integer numberItems;
 
-    private static Context context;
-
     public Collection(){}
 
-    public Collection(org.dspace.content.Collection collection, String expand) {
-       setup(collection, expand);
+    public Collection(org.dspace.content.Collection collection, String expand, Context context) throws SQLException, WebApplicationException{
+        super(collection);
+        setup(collection, expand, context);
     }
 
-    public Collection(Integer collectionID, String expand) {
-        try {
-            if(context == null || !context.isValid() ) {
-                context = new Context();
-            }
-
-            org.dspace.content.Collection collection = org.dspace.content.Collection.find(context, collectionID);
-            setup(collection, expand);
-
-        } catch (Exception e) {
-            //TODO Handle exceptions
-            //throw e;
-
-        }
-    }
-
-    private void setup(org.dspace.content.Collection collection, String expand) {
+    private void setup(org.dspace.content.Collection collection, String expand, Context context) throws SQLException{
         List<String> expandFields = new ArrayList<String>();
         if(expand != null) {
             expandFields = Arrays.asList(expand.split(","));
         }
 
-        metadata = new CollectionMetadata();
-
-        try {
-            this.setCollectionID(collection.getID());
-            metadata.setName(collection.getName());
-            metadata.setHandle(collection.getHandle());
-
-            if(expandFields.contains("parentCommunityIDList")) {
-                Community[] parentCommunities = collection.getCommunities();
-                for(Community parentCommunity : parentCommunities) {
-                    this.addParentCommunityIDList(parentCommunity.getID());
-                }
-            } else {
-                this.addExpand("parentCommunityIDList");
+        if(expandFields.contains("parentCommunityIDList") || expandFields.contains("all")) {
+            org.dspace.content.Community[] parentCommunities = collection.getCommunities();
+            for(org.dspace.content.Community parentCommunity : parentCommunities) {
+                this.addParentCommunityIDList(parentCommunity.getID());
             }
-
-            if(expandFields.contains("parentCommunityID")) {
-                Community parentCommunity = (Community) collection.getParentObject();
-                this.setParentCommunityID(parentCommunity.getID());
-            } else {
-                this.addExpand("parentCommunityID");
-            }
-
-            if(expandFields.contains("itemIDList")) {
-                ItemIterator childItems = collection.getItems();
-                while(childItems.hasNext()) {
-                    Item item = childItems.next();
-                    this.addItemIDToList(item.getID());
-                }
-            } else {
-                this.addExpand("itemIDList");
-            }
-
-            if(expandFields.contains("license")) {
-                metadata.setLicense(collection.getLicense());
-            } else {
-                this.addExpand("license");
-            }
-
-            if(collection.getLogo() != null) {
-                this.setLogoID(collection.getLogo().getID());
-            }
-
-            this.setNumberItems(collection.countItems());
-            //collection.getMetadata()
-        } catch (Exception e) {
-
+        } else {
+            this.addExpand("parentCommunityIDList");
         }
 
-    }
+        if(expandFields.contains("parentCommunityID") | expandFields.contains("all")) {
+            org.dspace.content.Community parentCommunity = (org.dspace.content.Community) collection.getParentObject();
+            this.setParentCommunityID(parentCommunity.getID());
+        } else {
+            this.addExpand("parentCommunityID");
+        }
 
-    public Integer getCollectionID() {
-        return collectionID;
-    }
+        //TODO: Item paging. limit, offset/page
+        if(expandFields.contains("items") || expandFields.contains("all")) {
+            ItemIterator childItems = collection.getItems();
+            items = new ArrayList<DSpaceObject>();
+            while(childItems.hasNext()) {
+                org.dspace.content.Item item = childItems.next();
+                if(AuthorizeManager.authorizeActionBoolean(context, item, org.dspace.core.Constants.READ)) {
+                    items.add(new DSpaceObject(item));
+                }
+            }
+        } else {
+            this.addExpand("items");
+        }
 
-    public void setCollectionID(Integer id) {
-        this.collectionID = id;
+        if(expandFields.contains("license") || expandFields.contains("all")) {
+            setLicense(collection.getLicense());
+        } else {
+            this.addExpand("license");
+        }
+
+        if(!expandFields.contains("all")) {
+            this.addExpand("all");
+        }
+
+        if(collection.getLogo() != null) {
+            this.setLogoID(collection.getLogo().getID());
+        }
+
+        this.setNumberItems(collection.countItems());
     }
 
     public Integer getLogoID() {
@@ -166,7 +158,6 @@ public class Collection {
         this.parentCommunityIDList.add(communityParentID);
     }
 
-
     public List<Integer> getItemIDList() {
         return itemIDList;
     }
@@ -178,18 +169,4 @@ public class Collection {
     public void addItemIDToList(Integer itemID) {
         this.itemIDList.add(itemID);
     }
-
-    public List<String> getExpand() {
-        return expand;
-    }
-
-    public void setExpand(List<String> expand) {
-        this.expand = expand;
-    }
-
-    public void addExpand(String expandableAttribute) {
-        this.expand.add(expandableAttribute);
-    }
-
-
 }

@@ -152,6 +152,11 @@
             <type>jar</type>
             <classifier>classes</classifier>
     	</dependency>
+    	<dependency>
+    		<groupId>org.dspace</groupId>
+    		<artifactId>dspace-services</artifactId>
+    		<type>jar</type>
+    	</dependency>
         <!-- The Servlet API is also needed by the 'dspace oai' launcher.xml
              command. -->
     	<dependency>

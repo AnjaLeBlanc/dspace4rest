@@ -1,10 +1,21 @@
+/**
+ * The contents of this file are subject to the license and copyright
+ * detailed in the LICENSE and NOTICE files at the root of the source
+ * tree and available online at
+ *
+ * http://www.dspace.org/license/
+ */
 package org.dspace.rest;
 
-import org.dspace.content.Collection;
+
+import org.apache.log4j.Logger;
+import org.dspace.authorize.AuthorizeManager;
+import org.dspace.core.Context;
 
 import javax.servlet.ServletContext;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
@@ -17,6 +28,8 @@ http://localhost:8080/<webapp>/collections
  */
 @Path("/collections")
 public class CollectionsResource {
+    private static Logger log = Logger.getLogger(CollectionsResource.class);
+
     @javax.ws.rs.core.Context ServletContext servletContext;
 
     private static org.dspace.core.Context context;
@@ -33,12 +46,14 @@ public class CollectionsResource {
         try {
             org.dspace.core.Context context = new org.dspace.core.Context();
 
-            Collection[] collections = Collection.findAll(context);
-            for(Collection collection : collections) {
+            org.dspace.content.Collection[] collections = org.dspace.content.Collection.findAll(context);
+            for(org.dspace.content.Collection collection : collections) {
+                //TODO check auth...
                 everything.append("<li><a href='" + servletContext.getContextPath() + "/collections/" + collection.getID() + "'>" + collection.getID() + " - " + collection.getName() + "</a></li>\n");
             }
 
         } catch (SQLException e) {
+            log.error(e.getMessage());
             return "ERROR: " + e.getMessage();
         }
 
@@ -54,17 +69,20 @@ public class CollectionsResource {
                 context = new org.dspace.core.Context();
             }
 
-            Collection[] collections = Collection.findAll(context);
+            org.dspace.content.Collection[] collections = org.dspace.content.Collection.findAll(context);
             ArrayList<org.dspace.rest.common.Collection> collectionArrayList = new ArrayList<org.dspace.rest.common.Collection>();
-            for(Collection collection : collections) {
-                org.dspace.rest.common.Collection restCollection = new org.dspace.rest.common.Collection(collection, expand);
-                collectionArrayList.add(restCollection);
+            for(org.dspace.content.Collection collection : collections) {
+                if(AuthorizeManager.authorizeActionBoolean(context, collection, org.dspace.core.Constants.READ)) {
+                    org.dspace.rest.common.Collection restCollection = new org.dspace.rest.common.Collection(collection, expand, context);
+                    collectionArrayList.add(restCollection);
+                } // Not showing restricted-access collections
             }
 
             return collectionArrayList.toArray(new org.dspace.rest.common.Collection[0]);
 
         } catch (SQLException e) {
-            return null;
+            e.getMessage();
+            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -72,6 +90,20 @@ public class CollectionsResource {
     @Path("/{collection_id}")
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public org.dspace.rest.common.Collection getCollection(@PathParam("collection_id") Integer collection_id, @QueryParam("expand") String expand) {
-        return new org.dspace.rest.common.Collection(collection_id, expand);
+        try {
+            if(context == null || !context.isValid() ) {
+                context = new Context();
+            }
+
+            org.dspace.content.Collection collection = org.dspace.content.Collection.find(context, collection_id);
+            if(AuthorizeManager.authorizeActionBoolean(context, collection, org.dspace.core.Constants.READ)) {
+                return new org.dspace.rest.common.Collection(collection, expand, context);
+            } else {
+                throw new WebApplicationException(Response.Status.UNAUTHORIZED);
+            }
+        } catch (SQLException e) {
+            log.error(e.getMessage());
+            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
+        }
     }
 }
