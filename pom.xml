@@ -600,7 +600,7 @@
         <dependency>
             <artifactId>spring-core</artifactId>
             <groupId>org.springframework</groupId>
-            <version>4.3.19.RELEASE</version>
+            <version>4.3.21.RELEASE</version>
         </dependency>
 
         <dependency>
