@@ -636,7 +636,7 @@
         <dependency>
             <artifactId>spring-web</artifactId>
             <groupId>org.springframework</groupId>
-            <version>6.0.0</version>
+            <version>6.0.17</version>
         </dependency>
 
         <dependency>
